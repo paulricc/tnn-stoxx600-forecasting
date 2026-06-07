@@ -122,6 +122,7 @@ class Preprocessor:
         Returns:
             Normalized DataFrame.
         """
+        assert self.min_ is not None and self.max_ is not None
         df[COLS] = (df[COLS] - self.min_[COLS]) / (self.max_[COLS] - self.min_[COLS])
         return df
 
