@@ -1,9 +1,12 @@
 import datetime as dt
 import logging
 
+import torch
+
 from src.data.downloader import download_stoxx600
 from src.data.preprocessor import Preprocessor
 from src.features.sequences import make_sequences
+from src.models.lstm import LSTMModel
 
 logging.basicConfig(level=logging.INFO)
 
@@ -26,7 +29,10 @@ df_test_preprocessed = preprocessor.transform(df_test)
 X_train, y_train = make_sequences(df_train_preprocessed, sequence_length=3, horizon=1)
 X_test, y_test = make_sequences(df_test_preprocessed, sequence_length=3, horizon=1)
 
-print(f"X_train shape: {X_train.shape}")
-print(f"y_train shape: {y_train.shape}")
-print(f"X_test shape: {X_test.shape}")
-print(f"y_test shape: {y_test.shape}")
+model = LSTMModel(input_size=4, hidden_size=32)
+X_sample = torch.tensor(X_train[:5])
+output = model(X_sample)
+
+print(f"Input shape: {X_sample.shape}")
+print(f"Output shape: {output.shape}")
+print(output)
