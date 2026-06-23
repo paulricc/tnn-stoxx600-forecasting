@@ -6,7 +6,9 @@ import torch
 from src.data.downloader import download_stoxx600
 from src.data.preprocessor import Preprocessor
 from src.features.sequences import make_sequences
+from src.models.arima import ARIMAModel
 from src.models.lstm import LSTMModel
+from src.models.tnn import TNN
 
 logging.basicConfig(level=logging.INFO)
 
@@ -33,6 +35,19 @@ model = LSTMModel(input_size=4, hidden_size=32)
 X_sample = torch.tensor(X_train[:5])
 output = model(X_sample)
 
-print(f"Input shape: {X_sample.shape}")
-print(f"Output shape: {output.shape}")
-print(output)
+model_tnn = TNN(
+    input_size=4,
+    kernel_output_size=64,
+    kernel_size=2,
+    hidden_size=32,
+)
+X_sample = torch.tensor(X_train[:5])
+output_tnn = model_tnn(X_sample)
+
+close_series = df_train_preprocessed["Close"]
+
+arima_model = ARIMAModel(order=(1, 1, 1))
+arima_model.fit(close_series)
+forecast = arima_model.predict(n_periods=5)
+
+print(f"ARIMA forecast: {forecast}")
