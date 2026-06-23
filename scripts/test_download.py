@@ -1,10 +1,12 @@
 import datetime as dt
 import logging
 
+import numpy as np
 import torch
 
 from src.data.downloader import download_stoxx600
 from src.data.preprocessor import Preprocessor
+from src.evaluation.metrics import compute_metrics
 from src.features.sequences import make_sequences
 from src.models.arima import ARIMAModel
 from src.models.lstm import LSTMModel
@@ -50,4 +52,9 @@ arima_model = ARIMAModel(order=(1, 1, 1))
 arima_model.fit(close_series)
 forecast = arima_model.predict(n_periods=5)
 
-print(f"ARIMA forecast: {forecast}")
+
+y_true_sample = y_test[:10]
+y_pred_sample = y_test[:10] + np.random.normal(0, 0.01, size=10)  # finta predizione
+
+metrics = compute_metrics(y_true_sample, y_pred_sample)
+print(metrics)
