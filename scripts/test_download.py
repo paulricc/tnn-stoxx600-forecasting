@@ -4,6 +4,7 @@ import logging
 import numpy as np
 import torch
 
+from src.config import load_config
 from src.data.downloader import download_stoxx600
 from src.data.preprocessor import Preprocessor
 from src.evaluation.metrics import compute_metrics
@@ -57,4 +58,9 @@ y_true_sample = y_test[:10]
 y_pred_sample = y_test[:10] + np.random.normal(0, 0.01, size=10)  # finta predizione
 
 metrics = compute_metrics(y_true_sample, y_pred_sample)
-print(metrics)
+
+
+config = load_config()
+print(config)
+print(config.models.lstm.hidden_size)
+print(config.training.horizons)
