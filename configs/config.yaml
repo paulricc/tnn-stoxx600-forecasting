@@ -25,4 +25,4 @@ training:
 
 mlflow:
   experiment_name: "tnn-stoxx600-forecasting"
-  tracking_uri: "mlruns"
+  tracking_uri: "sqlite:///mlflow.db"

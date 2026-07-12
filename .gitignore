@@ -218,3 +218,10 @@ __marimo__/
 .streamlit/secrets.toml
 
 .scripts/
+
+mlflow.db
+
+data/processed/*.pt
+data/processed/*.joblib
+
+mlruns/
