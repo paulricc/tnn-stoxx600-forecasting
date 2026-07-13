@@ -28,6 +28,10 @@ def make_sequences(
     """
     n_samples = len(df) - sequence_length - horizon + 1
 
+    if n_samples <= 0:
+        return np.empty(
+            (0, sequence_length, len(FEATURES)), dtype=np.float32
+        ), np.empty(0, dtype=np.float32)
     X_array = np.zeros((n_samples, sequence_length, len(FEATURES)), dtype=np.float32)
     y_array = np.zeros(n_samples, dtype=np.float32)
 
