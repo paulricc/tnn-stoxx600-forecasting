@@ -133,6 +133,8 @@ class Preprocessor:
             path: Path where the preprocessor will be saved.
         """
         path.parent.mkdir(parents=True, exist_ok=True)
+        joblib.dump(self, path)
+        logger.info("Preprocessor saved to %s", path)
 
     @classmethod
     def load(cls, path: Path) -> Preprocessor:
