@@ -2,25 +2,29 @@ data:
   start_date: "2014-01-01"
   end_date: "2024-01-01"
   train_test_split: 0.8
+  val_split: 0.1
+  # Shared by LSTM and TNN. Selected via scripts/hyperparameter_search.py,
+  # where both models independently picked 3.
   sequence_length: 3
 
 models:
   lstm:
-    hidden_size: 32
+    hidden_size: 128
     num_layers: 1
     dropout: 0.0
+    learning_rate: 0.01
   tnn:
     kernel_output_size: 64
     kernel_size: 2
     hidden_size: 32
     dropout: 0.2
+    learning_rate: 0.001
   arima:
     order: [1, 1, 1]
 
 training:
   horizons: [1, 7, 30]
   epochs: 100
-  learning_rate: 0.001
   batch_size: 32
 
 mlflow:

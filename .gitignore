@@ -225,3 +225,4 @@ data/processed/*.pt
 data/processed/*.joblib
 
 mlruns/
+configs/best_params.yaml

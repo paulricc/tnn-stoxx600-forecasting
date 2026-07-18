@@ -124,3 +124,46 @@ training:
 - **ML** — PyTorch, statsmodels, scikit-learn, pandas, yfinance
 - **MLOps** — MLflow (SQLite backend)
 - **Infrastructure** — Docker, GitHub Actions
+
+
+## Results
+
+### Model comparison (horizon = 1 day)
+
+Test-set RMSE over 5 random seeds, using hyperparameters selected on a
+held-out validation set:
+
+| Model | RMSE (mean ± std) | Min | Max |
+|-------|-------------------|-----|-----|
+| LSTM  | 0.0242 ± 0.0017   | 0.0226 | 0.0266 |
+| TNN   | 0.0249 ± 0.0007   | 0.0241 | 0.0258 |
+
+**The two architectures are statistically indistinguishable on this dataset.**
+The difference in means (0.0007) is smaller than LSTM's standard deviation
+across seeds (0.0017), and the observed ranges overlap almost entirely.
+
+TNN is, however, noticeably more stable: its standard deviation is roughly a
+third of LSTM's, suggesting the kernel filter and attention mechanism make it
+less sensitive to random initialization.
+
+### Non-replication of the paper's central claim
+
+Zhang et al. report that TNN substantially outperforms LSTM (RMSE 0.05 vs 0.09
+at a 1-day horizon on the S&P 500). That advantage did not reproduce here.
+
+This is a non-replication under different conditions rather than a refutation.
+The setups differ in index (STOXX Europe 600 vs S&P 500), feature set,
+preprocessing, and hyperparameter selection. Notably, the paper reports
+single-run figures with no measure of variance — and this project's own results
+show that single-run comparisons on this data are not reliable: an early
+comparison here appeared to show a clear TNN advantage, which disappeared
+entirely once run-to-run variance was measured.
+
+### ARIMA
+
+ARIMA is included as a classical baseline, but the current evaluation is not a
+like-for-like comparison. The deep learning models are scored on ~500 rolling
+windows; ARIMA is fitted once at the train/test boundary and scored on `horizon`
+points forecast from that single origin. At horizon=1 this means a single
+prediction, which is why R² is undefined. A rolling-origin evaluation is needed
+before the ARIMA numbers can be compared directly to the others.

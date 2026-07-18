@@ -5,10 +5,7 @@ from datetime import date
 from pathlib import Path
 
 import mlflow
-import numpy as np
 import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader, TensorDataset
 
 from src.config import load_config
 from src.data.downloader import download_stoxx600
@@ -18,97 +15,17 @@ from src.features.sequences import make_sequences
 from src.models.arima import ARIMAModel
 from src.models.lstm import LSTMModel
 from src.models.tnn import TNN
+from src.training.trainer import (
+    evaluate_pytorch_model,
+    make_dataloader,
+    train_pytorch_model,
+)
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(name)s %(levelname)s %(message)s",
 )
 logger = logging.getLogger(__name__)
-
-
-def make_dataloader(
-    X: np.ndarray,
-    y: np.ndarray,
-    batch_size: int,
-    shuffle: bool = True,
-) -> DataLoader:
-    """Create a PyTorch DataLoader from numpy arrays.
-
-    Args:
-        X: Input array of shape (n_samples, sequence_length, n_features).
-        y: Target array of shape (n_samples,).
-        batch_size: Number of samples per batch.
-        shuffle: Whether to shuffle the data at each epoch.
-
-    Returns:
-        DataLoader ready for training or evaluation.
-    """
-    dataset = TensorDataset(
-        torch.tensor(X, dtype=torch.float32),
-        torch.tensor(y, dtype=torch.float32),
-    )
-    return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
-
-
-def train_pytorch_model(
-    model: nn.Module,
-    train_loader: DataLoader,
-    epochs: int,
-    learning_rate: float,
-) -> nn.Module:
-    """Train a PyTorch model.
-
-    Args:
-        model: The PyTorch model to train.
-        train_loader: DataLoader for training data.
-        epochs: Number of training epochs.
-        learning_rate: Learning rate for the Adam optimizer.
-
-    Returns:
-        Trained model.
-    """
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    criterion = nn.MSELoss()
-
-    model.train()
-    for epoch in range(epochs):
-        epoch_loss = 0.0
-        for X_batch, y_batch in train_loader:
-            optimizer.zero_grad()
-            output = model(X_batch)
-            loss = criterion(output.squeeze(), y_batch)
-            loss.backward()
-            optimizer.step()
-            epoch_loss += loss.item()
-
-        if (epoch + 1) % 10 == 0:
-            avg_loss = epoch_loss / len(train_loader)
-            logger.info("Epoch %d/%d — loss: %.4f", epoch + 1, epochs, avg_loss)
-
-    return model
-
-
-def evaluate_pytorch_model(
-    model: nn.Module,
-    X_test: np.ndarray,
-    y_test: np.ndarray,
-) -> dict[str, float]:
-    """Evaluate a trained PyTorch model on test data.
-
-    Args:
-        model: Trained PyTorch model.
-        X_test: Test input array.
-        y_test: Test target array.
-
-    Returns:
-        Dictionary of evaluation metrics.
-    """
-    model.eval()
-    with torch.no_grad():
-        X_tensor = torch.tensor(X_test, dtype=torch.float32)
-        y_pred = model(X_tensor).squeeze().numpy()
-
-    return compute_metrics(y_test, y_pred)
 
 
 def main() -> None:
@@ -162,7 +79,7 @@ def main() -> None:
                     "hidden_size": config.models.lstm.hidden_size,
                     "num_layers": config.models.lstm.num_layers,
                     "epochs": config.training.epochs,
-                    "learning_rate": config.training.learning_rate,
+                    "learning_rate": config.models.lstm.learning_rate,
                 }
             )
 
@@ -176,7 +93,7 @@ def main() -> None:
                 lstm,
                 train_loader,
                 epochs=config.training.epochs,
-                learning_rate=config.training.learning_rate,
+                learning_rate=config.models.lstm.learning_rate,
             )
             metrics = evaluate_pytorch_model(lstm, X_test, y_test)
             mlflow.log_metrics(metrics)
@@ -196,7 +113,7 @@ def main() -> None:
                     "kernel_size": config.models.tnn.kernel_size,
                     "hidden_size": config.models.tnn.hidden_size,
                     "epochs": config.training.epochs,
-                    "learning_rate": config.training.learning_rate,
+                    "learning_rate": config.models.tnn.learning_rate,
                 }
             )
 
@@ -211,7 +128,7 @@ def main() -> None:
                 tnn,
                 train_loader,
                 epochs=config.training.epochs,
-                learning_rate=config.training.learning_rate,
+                learning_rate=config.models.tnn.learning_rate,
             )
             metrics = evaluate_pytorch_model(tnn, X_test, y_test)
             mlflow.log_metrics(metrics)

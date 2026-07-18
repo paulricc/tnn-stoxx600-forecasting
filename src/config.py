@@ -13,6 +13,7 @@ class DataConfig(BaseModel):
     end_date: str
     train_test_split: float
     sequence_length: int
+    val_split: float
 
 
 class LSTMConfig(BaseModel):
@@ -21,6 +22,7 @@ class LSTMConfig(BaseModel):
     hidden_size: int
     num_layers: int
     dropout: float
+    learning_rate: float
 
 
 class TNNConfig(BaseModel):
@@ -30,6 +32,7 @@ class TNNConfig(BaseModel):
     kernel_size: int
     hidden_size: int
     dropout: float
+    learning_rate: float
 
 
 class ARIMAConfig(BaseModel):
@@ -51,7 +54,6 @@ class TrainingConfig(BaseModel):
 
     horizons: list[int]
     epochs: int
-    learning_rate: float
     batch_size: int
 
 
