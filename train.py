@@ -149,11 +149,12 @@ def main() -> None:
             )
 
             arima = ARIMAModel(order=config.models.arima.order)
-            arima.fit(df_train_processed["Close"])
-            forecast = arima.predict(n_periods=horizon)
-
-            y_test_arima = df_test_processed["Close"].values[:horizon]
-            metrics = compute_metrics(y_test_arima, forecast)
+            y_true_arima, y_pred_arima = arima.rolling_forecast(
+                train_series=df_train_processed["Close"],
+                test_series=df_test_processed["Close"],
+                horizon=horizon,
+            )
+            metrics = compute_metrics(y_true_arima, y_pred_arima)
             mlflow.log_metrics(metrics)
             logger.info("ARIMA horizon=%d metrics: %s", horizon, metrics)
 
