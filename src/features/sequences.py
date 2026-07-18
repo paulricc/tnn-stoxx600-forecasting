@@ -45,3 +45,30 @@ def make_sequences(
     logger.info(f"Created {len(X_array)} sequences with shape {X_array.shape}")
 
     return X_array, y_array
+
+
+def make_inference_window(
+    df: pd.DataFrame,
+    sequence_length: int,
+) -> np.ndarray:
+    """Build a single input window from the most recent rows, for forecasting.
+
+    Unlike make_sequences, this does not require a target and therefore uses
+    the final rows of the DataFrame. The resulting prediction refers to a point
+    `horizon` steps beyond the last observation.
+
+    Args:
+        df: Preprocessed DataFrame with feature columns.
+        sequence_length: Number of past time steps to include.
+
+    Returns:
+        Array of shape (1, sequence_length, n_features).
+
+    Raises:
+        ValueError: If the DataFrame has fewer rows than sequence_length.
+    """
+    if len(df) < sequence_length:
+        raise ValueError(f"Need at least {sequence_length} rows, got {len(df)}")
+
+    window = df[FEATURES].values[-sequence_length:]
+    return window.reshape(1, sequence_length, len(FEATURES)).astype(np.float32)

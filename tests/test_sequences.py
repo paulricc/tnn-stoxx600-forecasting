@@ -66,3 +66,38 @@ def test_minimum_length_raises_or_returns_empty(sample_df: pd.DataFrame) -> None
     X, y = make_sequences(tiny_df, sequence_length=3, horizon=10)
     assert len(X) == 0
     assert len(y) == 0
+
+
+def test_inference_window_uses_final_rows(sample_df: pd.DataFrame) -> None:
+    """The inference window must come from the end of the data."""
+    from src.features.sequences import make_inference_window
+
+    window = make_inference_window(sample_df, sequence_length=3)
+
+    assert window.shape == (1, 3, 4)
+    expected = sample_df[["Open", "High", "Low", "Volume"]].values[-3:]
+    assert np.allclose(window[0], expected)
+
+
+def test_inference_window_differs_from_last_training_window(
+    sample_df: pd.DataFrame,
+) -> None:
+    """The inference window should extend past the last window make_sequences
+    can produce, since the latter is limited by the need for a target."""
+    from src.features.sequences import make_inference_window
+
+    X, _ = make_sequences(sample_df, sequence_length=3, horizon=7)
+    window = make_inference_window(sample_df, sequence_length=3)
+
+    assert not np.allclose(X[-1], window[0])
+
+
+def test_inference_window_raises_when_too_short() -> None:
+    """Too few rows should raise rather than silently return a short window."""
+    from src.features.sequences import make_inference_window
+
+    tiny = pd.DataFrame(
+        {c: [1.0, 2.0] for c in ["Open", "High", "Low", "Close", "Volume"]}
+    )
+    with pytest.raises(ValueError):
+        make_inference_window(tiny, sequence_length=5)

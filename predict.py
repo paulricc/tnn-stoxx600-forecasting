@@ -1,20 +1,17 @@
-"""Prediction entry point for TNN STOXX600 forecasting project."""
+"""Inference entry point: forecast future values with all trained models."""
 
 import logging
 from datetime import date, timedelta
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
-import torch
 
 from src.config import load_config
 from src.data.downloader import download_stoxx600
-from src.data.preprocessor import Preprocessor
-from src.features.sequences import make_sequences
+from src.data.preprocessor import TARGET, Preprocessor
+from src.features.sequences import make_inference_window
 from src.models.arima import ARIMAModel
-from src.models.lstm import LSTMModel
-from src.models.tnn import TNN
+from src.models.loaders import load_lstm, load_tnn, predict_pytorch
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,77 +19,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
-def load_lstm(path: Path, input_size: int, config) -> LSTMModel:
-    """Load a trained LSTM model from disk.
-
-    Args:
-        path: Path to the saved state dict.
-        input_size: Number of input features.
-        config: Model configuration.
-
-    Returns:
-        Loaded LSTM model in eval mode.
-    """
-    model = LSTMModel(
-        input_size=input_size,
-        hidden_size=config.models.lstm.hidden_size,
-        num_layers=config.models.lstm.num_layers,
-        dropout=config.models.lstm.dropout,
-    )
-    model.load_state_dict(torch.load(path, weights_only=True))
-    model.eval()
-    return model
-
-
-def load_tnn(path: Path, input_size: int, config) -> TNN:
-    """Load a trained TNN model from disk.
-
-    Args:
-        path: Path to the saved state dict.
-        input_size: Number of input features.
-        config: Model configuration.
-
-    Returns:
-        Loaded TNN model in eval mode.
-    """
-    model = TNN(
-        input_size=input_size,
-        kernel_output_size=config.models.tnn.kernel_output_size,
-        kernel_size=config.models.tnn.kernel_size,
-        hidden_size=config.models.tnn.hidden_size,
-        dropout=config.models.tnn.dropout,
-    )
-    model.load_state_dict(torch.load(path, weights_only=True))
-    model.eval()
-    return model
-
-
-def predict_pytorch(model: torch.nn.Module, X: np.ndarray) -> np.ndarray:
-    """Run inference with a PyTorch model.
-
-    Args:
-        model: Trained PyTorch model in eval mode.
-        X: Input array of shape (n_samples, sequence_length, n_features).
-
-    Returns:
-        Predictions array of shape (n_samples,).
-    """
-    with torch.no_grad():
-        X_tensor = torch.tensor(X, dtype=torch.float32)
-        predictions = model(X_tensor).squeeze().numpy()
-    return predictions
+LOOKBACK_DAYS = 365
 
 
 def main() -> None:
-    """Run predictions with all trained models for all horizons."""
+    """Forecast beyond the most recent observation with every model."""
     config = load_config()
-    logger.info("Configuration loaded")
 
     end_date = date.today()
-    start_date = end_date - timedelta(days=365)
-
-    logger.info("Downloading recent data from %s to %s", start_date, end_date)
+    start_date = end_date - timedelta(days=LOOKBACK_DAYS)
     df = download_stoxx600(start_date=start_date, end_date=end_date)
 
     preprocessor_path = Path("data/processed/preprocessor.joblib")
@@ -102,49 +37,54 @@ def main() -> None:
     preprocessor = Preprocessor.load(preprocessor_path)
     df_processed = preprocessor.transform(df)
 
-    results = []
+    window = make_inference_window(
+        df_processed, sequence_length=config.data.sequence_length
+    )
+    input_size = window.shape[2]
+
+    # Persistence: the naive baseline that outperforms every model on the
+    # test set. Included so the comparison here matches the reported results.
+    last_observed = float(df_processed[TARGET].iloc[-1])
+
+    rows: list[dict[str, object]] = []
 
     for horizon in config.training.horizons:
-        X, y = make_sequences(
-            df_processed,
-            sequence_length=config.data.sequence_length,
-            horizon=horizon,
-        )
+        row: dict[str, object] = {
+            "horizon": horizon,
+            "persistence": last_observed,
+        }
 
-        input_size = X.shape[2]
-        row: dict[str, object] = {"horizon": horizon}
-
-        # LSTM
         lstm_path = Path(f"data/processed/lstm_horizon_{horizon}.pt")
         if lstm_path.exists():
-            lstm = load_lstm(lstm_path, input_size, config)
-            lstm_preds = predict_pytorch(lstm, X)
-            row["lstm_last_pred"] = float(lstm_preds[-1])
+            lstm = load_lstm(lstm_path, input_size, config.models.lstm)
+            row["lstm"] = float(predict_pytorch(lstm, window)[0])
         else:
-            logger.warning("LSTM model not found for horizon=%d", horizon)
-            row["lstm_last_pred"] = None
+            logger.warning("No LSTM found for horizon=%d", horizon)
+            row["lstm"] = None
 
-        # TNN
         tnn_path = Path(f"data/processed/tnn_horizon_{horizon}.pt")
         if tnn_path.exists():
-            tnn = load_tnn(tnn_path, input_size, config)
-            tnn_preds = predict_pytorch(tnn, X)
-            row["tnn_last_pred"] = float(tnn_preds[-1])
+            tnn = load_tnn(tnn_path, input_size, config.models.tnn)
+            row["tnn"] = float(predict_pytorch(tnn, window)[0])
         else:
-            logger.warning("TNN model not found for horizon=%d", horizon)
-            row["tnn_last_pred"] = None
+            logger.warning("No TNN found for horizon=%d", horizon)
+            row["tnn"] = None
 
-        # ARIMA
-        arima = ARIMAModel(order=config.models.arima.order)
-        arima.fit(df_processed["Close"])
-        arima_preds = arima.predict(n_periods=horizon)
-        row["arima_last_pred"] = float(arima_preds[-1])
+        # Fitting on all available data and forecasting ahead is the correct
+        # inference path for ARIMA. rolling_forecast is for evaluation only,
+        # since it consumes known future values.
+        arima = ARIMAModel(order=config.models.arima.order).fit(df_processed[TARGET])
+        row["arima"] = float(arima.predict(n_periods=horizon)[-1])
 
-        results.append(row)
+        rows.append(row)
 
-    results_df = pd.DataFrame(results)
-    print("\n=== Predictions (normalized scale) ===")
-    print(results_df.to_string(index=False))
+    print(f"\n=== Forecasts from {df.index[-1].date()}, normalized scale ===")
+    print(pd.DataFrame(rows).to_string(index=False))
+    print(
+        "\nValues are on the training set's min-max scale and are not "
+        "inverse-transformed. Values above 1.0 indicate prices exceeding the "
+        "training maximum. See README limitations."
+    )
 
 
 if __name__ == "__main__":

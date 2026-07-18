@@ -240,9 +240,9 @@ def main() -> None:
     mlflow.set_experiment(f"{config.mlflow.experiment_name}-hpo")
 
     results = {
-        # "lstm": search_model(
-        #    "lstm", LSTM_GRID, df_train_processed, df_val_processed, config
-        # ),
+        "lstm": search_model(
+            "lstm", LSTM_GRID, df_train_processed, df_val_processed, config
+        ),
         "tnn": search_model(
             "tnn", TNN_GRID, df_train_processed, df_val_processed, config
         ),
