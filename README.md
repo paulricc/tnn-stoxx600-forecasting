@@ -128,42 +128,64 @@ training:
 
 ## Results
 
-### Model comparison (horizon = 1 day)
+### Model comparison across horizons
 
-Test-set RMSE over 5 random seeds, using hyperparameters selected on a
-held-out validation set:
+Test-set RMSE over 5 random seeds, using hyperparameters selected on a held-out
+validation set at horizon=1:
 
-| Model | RMSE (mean ± std) | Min | Max |
-|-------|-------------------|-----|-----|
-| LSTM  | 0.0242 ± 0.0017   | 0.0226 | 0.0266 |
-| TNN   | 0.0249 ± 0.0007   | 0.0241 | 0.0258 |
+| Horizon | LSTM (mean ± std) | TNN (mean ± std) |
+|---------|-------------------|------------------|
+| 1 day   | 0.0242 ± 0.0017   | 0.0249 ± 0.0007  |
+| 7 days  | 0.0584 ± 0.0029   | 0.0571 ± 0.0022  |
+| 30 days | 0.1193 ± 0.0119   | 0.1181 ± 0.0066  |
 
-**The two architectures are statistically indistinguishable on this dataset.**
-The difference in means (0.0007) is smaller than LSTM's standard deviation
-across seeds (0.0017), and the observed ranges overlap almost entirely.
+**The two architectures are statistically indistinguishable at every horizon.**
+At each one, the difference between the means is smaller than the standard
+deviation across seeds, and the observed ranges overlap heavily. LSTM is
+marginally ahead at 1 day, TNN at 7 and 30, but none of these differences
+exceed the noise from random initialization.
 
-TNN is, however, noticeably more stable: its standard deviation is roughly a
-third of LSTM's, suggesting the kernel filter and attention mechanism make it
-less sensitive to random initialization.
+TNN is consistently more stable: its standard deviation is 39%, 75% and 56% of
+LSTM's at horizons 1, 7 and 30 respectively. The margin varies, but the
+direction holds at every horizon, suggesting the kernel filter and attention
+mechanism genuinely reduce sensitivity to initialization even though they do
+not improve accuracy.
+
+Both models degrade steeply as the horizon grows — RMSE increases roughly
+fivefold from 1 to 30 days for each.
 
 ### Non-replication of the paper's central claim
 
-Zhang et al. report that TNN substantially outperforms LSTM (RMSE 0.05 vs 0.09
-at a 1-day horizon on the S&P 500). That advantage did not reproduce here.
+Zhang et al. report that TNN substantially outperforms LSTM, with the largest
+margin at long horizons: RMSE 0.14 vs 0.28 at 30 days on the S&P 500, a
+twofold gap. That advantage did not reproduce here at any horizon, including
+the one where the paper claims it is greatest — the two models finish within
+1% of each other at 30 days.
 
 This is a non-replication under different conditions rather than a refutation.
 The setups differ in index (STOXX Europe 600 vs S&P 500), feature set,
 preprocessing, and hyperparameter selection. Notably, the paper reports
-single-run figures with no measure of variance — and this project's own results
-show that single-run comparisons on this data are not reliable: an early
-comparison here appeared to show a clear TNN advantage, which disappeared
-entirely once run-to-run variance was measured.
+single-run figures with no measure of variance, and this project's own results
+show why that matters: an early single-run comparison here appeared to show a
+clear TNN advantage, which disappeared entirely once run-to-run variance was
+measured across seeds.
 
-### ARIMA
+### Methodological notes and limitations
 
-ARIMA is included as a classical baseline, but the current evaluation is not a
-like-for-like comparison. The deep learning models are scored on ~500 rolling
-windows; ARIMA is fitted once at the train/test boundary and scored on `horizon`
-points forecast from that single origin. At horizon=1 this means a single
-prediction, which is why R² is undefined. A rolling-origin evaluation is needed
-before the ARIMA numbers can be compared directly to the others.
+**Hyperparameters were tuned at horizon=1 only** (see
+`scripts/hyperparameter_search.py`), then reused at 7 and 30 days to keep the
+search tractable. Both models receive identical treatment, so the comparison
+between them remains fair, but the absolute figures at longer horizons are
+likely not optimal — a longer `sequence_length`, for instance, may suit a
+30-day horizon better.
+
+**The hyperparameter search itself ranked configurations on single runs**, and
+is therefore subject to the same variance problem it later helped uncover. The
+selected values should be read as reasonable defaults rather than optima.
+
+**ARIMA is not evaluated like-for-like.** The deep learning models are scored
+on ~500 rolling windows; ARIMA is fitted once at the train/test boundary and
+scored on `horizon` points forecast from that single origin. At horizon=1 this
+means a single prediction, which is why R² is undefined. A rolling-origin
+evaluation is needed before the ARIMA figures can be compared directly to the
+others.
